@@ -1,0 +1,10 @@
+source,version,tag_or_build,commit_or_ref,date_seen,role,recommended_use
+Apple App Store,8.13,,visible version history,2026-06-01,production_reference,capture App Store IPA and treat extracted Info.plist as authority
+GitHub Signal-iOS,8.13,8.13.0.1623,c26023b,2026-06-01,exact_source_comparator,build Release/device archive from matching release tag
+GitHub Signal-iOS,8.12.1,8.12.1.1616,2ead22b,2026-06-01,previous_patch_comparator,build Release/device archive to separate production delta from release drift
+GitHub Signal-iOS,8.12,8.12.0.1599,0a04105,2026-06-01,previous_minor_comparator,build Release/device archive for wider release drift context
+GitHub Signal-iOS,8.11,8.11.0.1584,6ddf1bd,2026-06-01,historical_context,optional build if unexplained package drift appears
+GitHub Signal-iOS,8.10,8.10.0.1570,6dbc154,2026-06-01,historical_context,optional build if unexplained package drift appears
+GitHub Signal-iOS,8.9,8.9.0.1558,d03fcb9,2026-06-01,historical_context,optional build if unexplained package drift appears
+GitHub Signal-iOS,8.8,8.8.0.1549,54f6910,2026-06-01,historical_context,optional build if unexplained package drift appears
+GitHub Signal-iOS,8.7,8.7.0.1523,ce49b16,2026-06-01,historical_context,optional build if unexplained package drift appears

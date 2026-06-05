@@ -1,0 +1,12 @@
+category,field_or_path,why_expected,review_guidance
+Signing,TeamIdentifier,Different Apple Developer Team ID between Signal production and your local build,Normalize or ignore unless comparing two production artifacts
+Signing,application-identifier,Team ID prefix plus bundle identifier,Normalize Team ID prefix before judging
+Signing,keychain-access-groups,Team ID prefix changes between signers,Compare suffix/group structure after prefix normalization
+Signing,com.apple.security.application-groups,Team ID or group prefix changes between signers,Compare group purpose and suffix after prefix normalization
+Provisioning,UUID,Provisioning profiles are artifact-specific,Ignore for capability comparison
+Provisioning,CreationDate/ExpirationDate,Profiles are generated at different times,Ignore unless stale profile explains runtime behavior
+Code signature,_CodeSignature/*,Signature blobs change on every signing operation,Do not treat hash changes as code changes
+App Store,FairPlay cryptid 1,App Store executable is protected,Expected for production App Store binary
+App Store,receipt files,Distribution-channel artifact,Ignore for local-source parity
+App thinning,resources and architecture slices,App Store can deliver device-specific variants,Compare multiple device captures before treating resource absence as production-only
+Build,DTXcode/DTSDKBuild,Local Xcode may differ from Signal's production toolchain,Investigate only if it changes runtime APIs/hardening or explains linked library deltas

@@ -1,0 +1,21 @@
+area,field_or_artifact,why_it_matters
+Info.plist,UIBackgroundModes,Changes process lifetime and background execution attack surface
+Info.plist,CFBundleURLTypes,Defines deep-link/IPC entry points
+Info.plist,LSApplicationQueriesSchemes,Defines inter-app discovery capability
+Info.plist,NSAppTransportSecurity,Defines network transport security policy exceptions
+Info.plist,NSUserActivityTypes,Defines handoff/universal activity surfaces
+Entitlements,com.apple.developer.associated-domains,Universal links and webcredential trust relationship
+Entitlements,keychain-access-groups,Data sharing and credential/key storage scope
+Entitlements,com.apple.security.application-groups,Inter-extension/app data-sharing boundary
+Entitlements,aps-environment,Push notification environment and production behavior
+Entitlements,com.apple.developer.usernotifications.communication,Communication notification behavior and sensitive UX integrations
+Entitlements,com.apple.developer.networking.networkextension,Network-level capability if present
+Entitlements,get-task-allow,Debuggable process entitlement; should be false in production/release builds
+Privacy,PrivacyInfo.xcprivacy,Privacy declarations and required-reason API usage
+Package,PlugIns/*.appex,App extensions add separate executable/capability surfaces
+Package,Frameworks/*.framework,Embedded code surface and dependency drift
+Package,*.dylib,Embedded dynamic library surface
+Mach-O,linked_libraries,System API and framework dependency surface
+Mach-O,rpaths,Dynamic loader search behavior
+Mach-O,LC_BUILD_VERSION,Minimum OS/SDK build metadata
+Mach-O,LC_ENCRYPTION_INFO cryptid,Confirms FairPlay boundary in App Store artifact

@@ -1,0 +1,245 @@
+{
+  "artifacts": [
+    {
+      "expected_build": "8.13.0.1623",
+      "expected_git_ref": "8.13.0.1623",
+      "expected_version": "8.13",
+      "id": "signal_local_8_13_0_1623_release",
+      "label": "Signal-iOS 8.13.0.1623 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.13.0.1623.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "8.12.1.1616",
+      "expected_git_ref": "8.12.1.1616",
+      "expected_version": "8.12.1",
+      "id": "signal_local_8_12_1_1616_release",
+      "label": "Signal-iOS 8.12.1.1616 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.12.1.1616.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "8.12.0.1599",
+      "expected_git_ref": "8.12.0.1599",
+      "expected_version": "8.12",
+      "id": "signal_local_8_12_0_1599_release",
+      "label": "Signal-iOS 8.12.0.1599 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.12.0.1599.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "8.11.0.1584",
+      "expected_git_ref": "8.11.0.1584",
+      "expected_version": "8.11",
+      "id": "signal_local_8_11_0_1584_release",
+      "label": "Signal-iOS 8.11.0.1584 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.11.0.1584.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "8.10.0.1570",
+      "expected_git_ref": "8.10.0.1570",
+      "expected_version": "8.10",
+      "id": "signal_local_8_10_0_1570_release",
+      "label": "Signal-iOS 8.10.0.1570 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.10.0.1570.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "8.9.0.1558",
+      "expected_git_ref": "8.9.0.1558",
+      "expected_version": "8.9",
+      "id": "signal_local_8_9_0_1558_release",
+      "label": "Signal-iOS 8.9.0.1558 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.9.0.1558.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "8.8.0.1549",
+      "expected_git_ref": "8.8.0.1549",
+      "expected_version": "8.8",
+      "id": "signal_local_8_8_0_1549_release",
+      "label": "Signal-iOS 8.8.0.1549 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.8.0.1549.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "8.7.0.1523",
+      "expected_git_ref": "8.7.0.1523",
+      "expected_version": "8.7",
+      "id": "signal_local_8_7_0_1523_release",
+      "label": "Signal-iOS 8.7.0.1523 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.7.0.1523.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "8.6.0.1506",
+      "expected_git_ref": "8.6.0.1506",
+      "expected_version": "8.6",
+      "id": "signal_local_8_6_0_1506_release",
+      "label": "Signal-iOS 8.6.0.1506 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.6.0.1506.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "8.5.0.1491",
+      "expected_git_ref": "8.5.0.1491",
+      "expected_version": "8.5",
+      "id": "signal_local_8_5_0_1491_release",
+      "label": "Signal-iOS 8.5.0.1491 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.5.0.1491.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "8.4.0.1478",
+      "expected_git_ref": "8.4.0.1478",
+      "expected_version": "8.4",
+      "id": "signal_local_8_4_0_1478_release",
+      "label": "Signal-iOS 8.4.0.1478 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.4.0.1478.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "8.3.0.1463",
+      "expected_git_ref": "8.3.0.1463",
+      "expected_version": "8.3",
+      "id": "signal_local_8_3_0_1463_release",
+      "label": "Signal-iOS 8.3.0.1463 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.3.0.1463.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "8.2.0.1450",
+      "expected_git_ref": "8.2.0.1450",
+      "expected_version": "8.2",
+      "id": "signal_local_8_2_0_1450_release",
+      "label": "Signal-iOS 8.2.0.1450 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.2.0.1450.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "8.1.0.1422",
+      "expected_git_ref": "8.1.0.1422",
+      "expected_version": "8.1",
+      "id": "signal_local_8_1_0_1422_release",
+      "label": "Signal-iOS 8.1.0.1422 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.1.0.1422.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "8.0.0.1404",
+      "expected_git_ref": "8.0.0.1404",
+      "expected_version": "8.0",
+      "id": "signal_local_8_0_0_1404_release",
+      "label": "Signal-iOS 8.0.0.1404 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-8.0.0.1404.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "7.96.0.1377",
+      "expected_git_ref": "7.96.0.1377",
+      "expected_version": "7.96",
+      "id": "signal_local_7_96_0_1377_release",
+      "label": "Signal-iOS 7.96.0.1377 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-7.96.0.1377.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "7.95.0.1352",
+      "expected_git_ref": "7.95.0.1352",
+      "expected_version": "7.95",
+      "id": "signal_local_7_95_0_1352_release",
+      "label": "Signal-iOS 7.95.0.1352 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-7.95.0.1352.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "7.94.0.1336",
+      "expected_git_ref": "7.94.0.1336",
+      "expected_version": "7.94",
+      "id": "signal_local_7_94_0_1336_release",
+      "label": "Signal-iOS 7.94.0.1336 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-7.94.0.1336.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "7.93.0.1322",
+      "expected_git_ref": "7.93.0.1322",
+      "expected_version": "7.93",
+      "id": "signal_local_7_93_0_1322_release",
+      "label": "Signal-iOS 7.93.0.1322 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-7.93.0.1322.xcarchive",
+      "role": "local_release_tag"
+    },
+    {
+      "expected_build": "7.92.1.1315",
+      "expected_git_ref": "7.92.1.1315",
+      "expected_version": "7.92.1",
+      "id": "signal_local_7_92_1_1315_release",
+      "label": "Signal-iOS 7.92.1.1315 local Release/device archive",
+      "notes": "",
+      "path": "artifacts/local/Signal-7.92.1.1315.xcarchive",
+      "role": "local_release_tag"
+    }
+  ],
+  "hash_mode": "notable",
+  "normalization": {
+    "expected_substitutions": [
+      {
+        "from": "org.whispersystems.signal",
+        "to": "<BUNDLE_ID>"
+      },
+      {
+        "from": "group.org.whispersystems.signal",
+        "to": "<APP_GROUP>"
+      },
+      {
+        "from": "YOURTEAMID",
+        "to": "<TEAM_ID>"
+      },
+      {
+        "from": "SIGNALTEAMID",
+        "to": "<TEAM_ID>"
+      }
+    ],
+    "ignore_line_regex": [
+      "Authority=",
+      "Signature size=",
+      "Timestamp=",
+      "CDHash=",
+      "TeamIdentifier=",
+      "CMSDigest=",
+      "CMSDigestType=",
+      "^\\s*\"sha256\"",
+      "embedded.mobileprovision",
+      "_CodeSignature"
+    ]
+  },
+  "project": "Signal iOS metadata release sweep",
+  "reference": {
+    "id": "signal_appstore_reference",
+    "label": "Signal App Store IPA captured from the App Store",
+    "notes": "Place the captured App Store IPA at this path before running comparison. This is the production reference. Do not attempt FairPlay decryption.",
+    "path": "artifacts/appstore/Signal-AppStore.ipa",
+    "role": "appstore_reference"
+  }
+}

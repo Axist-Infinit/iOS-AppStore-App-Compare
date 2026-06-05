@@ -1,0 +1,69 @@
+{
+  "project": "Signal iOS App Store metadata comparison",
+  "hash_mode": "notable",
+  "reference": {
+    "id": "signal_appstore_8_13_device_slice",
+    "role": "appstore_reference",
+    "label": "Signal App Store IPA captured with Apple Configurator",
+    "path": "artifacts/appstore/Signal-AppStore.ipa",
+    "expected_version": "8.13",
+    "notes": "Reference should be the actual App Store IPA captured from the target device/account. Do not use a simulator build."
+  },
+  "artifacts": [
+    {
+      "id": "signal_local_8_13_0_1623_release",
+      "role": "local_exact_release_tag",
+      "label": "Local Release/device archive from matching Signal-iOS tag",
+      "path": "artifacts/local/Signal-8.13.0.1623.xcarchive",
+      "expected_version": "8.13",
+      "expected_build": "8.13.0.1623",
+      "expected_git_ref": "8.13.0.1623"
+    },
+    {
+      "id": "signal_local_8_12_1_1616_previous",
+      "role": "local_previous_release_tag",
+      "label": "Previous release build for regression/control comparison",
+      "path": "artifacts/local/Signal-8.12.1.1616.xcarchive",
+      "expected_version": "8.12.1",
+      "expected_build": "8.12.1.1616",
+      "expected_git_ref": "8.12.1.1616"
+    },
+    {
+      "id": "signal_local_main_release",
+      "role": "local_current_source",
+      "label": "Current source build from main branch for drift comparison",
+      "path": "artifacts/local/Signal-main.xcarchive",
+      "expected_git_ref": "main"
+    }
+  ],
+  "normalization": {
+    "expected_substitutions": [
+      {
+        "from": "YOURTEAMID",
+        "to": "<TEAM_ID>"
+      },
+      {
+        "from": "SIGNALTEAMID",
+        "to": "<TEAM_ID>"
+      },
+      {
+        "from": "com.yourorg.research.signal",
+        "to": "<BUNDLE_ID>"
+      },
+      {
+        "from": "org.whispersystems.signal",
+        "to": "<BUNDLE_ID>"
+      }
+    ],
+    "ignore_line_regex": [
+      "Authority=",
+      "Signature size=",
+      "Timestamp=",
+      "CDHash=",
+      "TeamIdentifier=",
+      "CMSDigest=",
+      "CMSDigestType=",
+      "^\\s*\"sha256\""
+    ]
+  }
+}

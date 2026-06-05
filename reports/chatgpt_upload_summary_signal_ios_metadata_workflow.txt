@@ -1,0 +1,375 @@
+Signal iOS Metadata Comparison Lab - Conversation Summary
+
+Purpose
+
+This workspace is a metadata comparison lab for Signal iOS. The goal is to compare a captured Signal App Store IPA against one or more locally built Signal-iOS source releases. The workflow focuses on package metadata, signing metadata, entitlements, app extensions, privacy manifests, bundle structure, resources, and Mach-O load metadata.
+
+This workflow does not decrypt FairPlay, bypass DRM, patch code signatures, dump memory, or recover protected App Store executable code.
+
+
+What Was Done In This Session
+
+- Removed transferred-file metadata files from the workspace.
+- Found no files matching "zone.transfer" exactly.
+- Found and removed 23 files ending in ":Zone.Identifier".
+- Verified no matching files remained.
+
+- Read the README, CODEX_CONTEXT.md, and release sweep runbook.
+- Confirmed the intended workflow:
+  - capture Signal App Store IPA,
+  - harvest Signal-iOS GitHub release metadata,
+  - build local Signal-iOS release archives on macOS/Xcode,
+  - generate a config from successful local builds,
+  - run the metadata comparison engine,
+  - review generated reports, manifests, diffs, and CSV findings.
+
+- Ran the GitHub release harvester:
+  - fetched 290 Signal-iOS GitHub release records,
+  - filtered to 289 usable releases,
+  - selected the newest 20 releases,
+  - generated release matrix/config files.
+
+- Generated these important files:
+  - matrices/signal_releases_all.csv
+  - matrices/signal_releases_selected.csv
+  - matrices/signal_release_tags_selected.txt
+  - matrices/signal_releases_raw.json
+  - config.signal_releases_20.json
+
+- The selected 20 releases started at:
+  - 8.13.0.1623
+  - 8.12.1.1616
+  - 8.12.0.1599
+  - 8.11.0.1584
+  - 8.10.0.1570
+  - and continued back through 7.92.1.1315.
+
+- Ran the build sweep in dry-run mode.
+- The dry run generated the planned xcodebuild archive commands for all 20 selected releases.
+- The dry-run status file was written to:
+  - out/build_logs/build_status.csv
+
+- Generated an "existing archives only" config:
+  - config.signal_releases_existing.json
+
+- That config currently contains zero local archive candidates because no local .xcarchive files exist yet.
+
+
+What This Proves
+
+The completed work proves that the workflow scaffolding is functional:
+
+- GitHub release metadata can be harvested.
+- Candidate Signal-iOS release tags can be selected.
+- A comparison config can be generated.
+- The build sweep script can parse the release matrix.
+- The build sweep script can produce the expected archive plan.
+- The workspace is ready to accept an App Store IPA and local Signal-iOS archives.
+
+It does not yet prove that:
+
+- Signal-iOS builds successfully locally.
+- A captured App Store IPA is present.
+- Any real App Store versus local-build comparison has occurred.
+- A local build matches the App Store package.
+
+
+Current Limitation
+
+This session was run from WSL2/Linux. That environment can perform setup steps, but it cannot complete the full iOS workflow.
+
+The machine did not have the required Apple tooling:
+
+- xcodebuild
+- codesign
+- plutil
+- otool
+- lipo
+- vtool
+- Apple Configurator
+- Xcode
+
+Because of that, real iOS archive builds and full Apple metadata extraction must be performed on macOS with Xcode installed.
+
+
+Why macOS Is Superior For This Workflow
+
+macOS is not just more convenient for this workflow; it is required for the full workflow.
+
+On WSL/Linux, the workflow can only:
+
+- harvest GitHub release metadata,
+- generate candidate release matrices,
+- dry-run the build plan,
+- prepare configs.
+
+On macOS, the workflow can:
+
+- capture the App Store IPA using Apple Configurator,
+- build Signal-iOS locally with Xcode,
+- inspect code signing metadata,
+- inspect provisioning profiles,
+- inspect entitlements,
+- parse plists with Apple tooling,
+- inspect Mach-O load commands,
+- generate real comparison reports.
+
+macOS does not remove the FairPlay limitation. The App Store executable may remain encrypted. The benefit of macOS is that it enables the full metadata comparison workflow.
+
+
+What Is Required To Make The Workflow Work End-To-End
+
+- A macOS host.
+- Xcode installed.
+- Xcode Command Line Tools installed.
+- Required tools available on PATH:
+  - xcodebuild
+  - codesign
+  - security
+  - plutil
+  - otool
+  - lipo
+  - vtool
+  - file
+  - shasum
+  - git
+  - make
+  - python3
+
+- A captured Signal App Store IPA at:
+  - artifacts/appstore/Signal-AppStore.ipa
+
+- One or more locally built Signal-iOS archives at:
+  - artifacts/local/Signal-<tag>.xcarchive
+
+- Local signing configuration sufficient to build Signal-iOS.
+- A local Team ID, bundle ID, app groups, and keychain groups for the research build.
+- A normalization profile that accounts for local signing differences.
+
+
+Step-By-Step Workflow
+
+- Capture the Signal App Store IPA using Apple Configurator or another lawful source.
+- Place it at:
+  - artifacts/appstore/Signal-AppStore.ipa
+
+- Record capture provenance:
+  - capture date,
+  - device model,
+  - iOS version,
+  - Apple Configurator version,
+  - Apple ID region,
+  - original IPA filename,
+  - IPA SHA-256.
+
+- Extract or read the App Store IPA version/build metadata:
+  - CFBundleShortVersionString
+  - CFBundleVersion
+
+- Harvest Signal-iOS release metadata from GitHub:
+  - python3 scripts/harvest_signal_ios_releases.py --limit 20 --out matrices --config-out config.signal_releases_20.json
+
+- Review:
+  - matrices/signal_releases_selected.csv
+  - matrices/signal_release_tags_selected.txt
+
+- Identify the primary local comparator based on the App Store IPA version/build.
+- Example:
+  - App Store version: 8.13
+  - App Store build: 8.13.0.1623
+  - Primary local GitHub tag: 8.13.0.1623
+
+- On macOS/Xcode, dry-run the build sweep:
+  - DRY_RUN=1 LIMIT=5 bash scripts/build_signal_release_sweep.sh matrices/signal_releases_selected.csv
+
+- Build a small batch first:
+  - LIMIT=5 bash scripts/build_signal_release_sweep.sh matrices/signal_releases_selected.csv
+
+- The build script:
+  - clones or uses Signal-iOS/,
+  - checks out each release tag,
+  - updates submodules,
+  - optionally runs dependency setup,
+  - runs xcodebuild archive.
+
+- Successful builds are written to:
+  - artifacts/local/Signal-<tag>.xcarchive
+
+- Build logs are written to:
+  - out/build_logs/
+
+- Generate a config containing only local archives that actually exist:
+  - python3 scripts/config_from_existing_archives.py --matrix matrices/signal_releases_selected.csv --appstore-path artifacts/appstore/Signal-AppStore.ipa --out config.signal_releases_existing.json
+
+- Run the metadata comparison:
+  - python3 scripts/ios_multiversion_meta_compare.py --config config.signal_releases_existing.json --out out/signal_release_sweep_existing
+
+- Review the generated outputs:
+  - out/signal_release_sweep_existing/report.html
+  - out/signal_release_sweep_existing/report.md
+  - out/signal_release_sweep_existing/manifests/
+  - out/signal_release_sweep_existing/diffs/
+  - out/signal_release_sweep_existing/csv/findings.csv
+
+
+What The Comparison Can Show
+
+The comparison can show whether the App Store IPA and the local Signal-iOS archive are consistent across observable metadata surfaces:
+
+- Info.plist values
+- entitlements
+- app extensions
+- embedded frameworks
+- embedded dylibs
+- privacy manifests
+- provisioning profile metadata
+- signing metadata
+- resource inventory
+- localized resources
+- bundle structure
+- Mach-O architectures
+- linked libraries
+- rpaths
+- SDK/minimum OS metadata
+- App Store encryption flag values such as cryptid
+
+
+How The App Store Version Is Matched To A Source Release
+
+The GitHub harvest step does not itself choose the App Store comparator. It only creates a pool of candidate Signal-iOS releases.
+
+The App Store IPA determines the primary comparator through its own metadata:
+
+- CFBundleShortVersionString
+- CFBundleVersion
+
+If the App Store IPA says:
+
+- CFBundleShortVersionString = 8.13
+- CFBundleVersion = 8.13.0.1623
+
+then the primary local source comparator is the Signal-iOS GitHub tag:
+
+- 8.13.0.1623
+
+Nearby releases can also be built and compared as controls, but the matching version/build is the primary comparator.
+
+
+What FairPlay Encryption Changes
+
+FairPlay encryption prevents direct static verification of the App Store executable code.
+
+Even if the App Store IPA and the local build have matching version/build metadata, this workflow cannot prove:
+
+- the App Store executable is byte-for-byte identical to the locally built executable,
+- the App Store binary was compiled from exactly the same source commit,
+- compiler flags or private CI settings were identical,
+- no source-level code differences exist inside the encrypted App Store binary.
+
+However, the workflow can still strongly validate metadata-level consistency:
+
+- same version/build lineage,
+- similar package structure,
+- similar app extensions,
+- similar embedded frameworks/dylibs,
+- similar entitlements,
+- similar privacy manifests,
+- similar Info.plist values,
+- similar linked libraries and Mach-O metadata.
+
+The correct conclusion is:
+
+- The App Store IPA reports version/build X.
+- The corresponding local Signal-iOS source tag X is the appropriate comparator.
+- The metadata comparison can show whether the production package is consistent with that local build across observable metadata surfaces.
+- FairPlay encryption prevents complete binary/source equivalence proof from this workflow alone.
+
+
+Minimum Proof Of Concept
+
+A minimum PoC requires:
+
+- one captured Signal App Store IPA,
+- one locally built Signal-iOS archive from the matching or closest GitHub tag,
+- one comparison run,
+- generated report.html/report.md,
+- generated manifests,
+- generated diffs,
+- generated CSV findings.
+
+Minimum PoC success condition:
+
+- The tool produces a comparison report from one App Store IPA and one local Signal-iOS archive.
+- The report identifies matching and differing metadata surfaces.
+- Differences are classified as expected signing/build noise, release drift, App Store packaging differences, or high-signal unexplained differences.
+
+
+Recommended Stronger PoC
+
+Use three artifacts:
+
+- the captured App Store IPA,
+- the matching local Signal-iOS release,
+- one nearby prior local Signal-iOS release.
+
+Then expand to:
+
+- two releases before the matching release,
+- two releases after the matching release,
+- then a larger historical sweep.
+
+The purpose of nearby releases is to help distinguish:
+
+- normal release-to-release drift,
+- local signing/build noise,
+- App Store packaging differences,
+- high-signal differences that require investigation.
+
+
+High-Signal Differences To Review First
+
+- Extra or missing app extensions.
+- Extra or missing embedded frameworks.
+- Extra or missing embedded dylibs.
+- Different app groups beyond Team ID prefix changes.
+- Different keychain groups beyond Team ID prefix changes.
+- Different associated domains.
+- Different URL schemes.
+- Different LSApplicationQueriesSchemes.
+- Different UIBackgroundModes.
+- Different ATS policy.
+- Different privacy manifests.
+- Different linked libraries.
+- Different minimum OS or SDK metadata.
+- Unexpected App Store cryptid values.
+
+
+Expected Noise
+
+These differences are usually expected between an App Store build and a local research build:
+
+- Team ID differences.
+- application-identifier prefix differences.
+- keychain group prefix differences.
+- app group prefix differences.
+- provisioning UUIDs.
+- certificate chains.
+- signing timestamps.
+- _CodeSignature contents.
+- embedded.mobileprovision differences.
+- App Store receipt files.
+- App Store FairPlay cryptid 1.
+- app thinning or device-specific resource differences.
+
+
+Core Takeaway
+
+The workflow is designed to answer:
+
+- "Does the captured Signal App Store package look metadata-consistent with the corresponding public Signal-iOS source release that I built locally?"
+
+It is not designed to answer:
+
+- "Is the encrypted App Store executable byte-for-byte identical to my locally built executable?"
+
+The current workspace has the release matrix and build plan ready. To complete the PoC, the missing pieces are a macOS/Xcode environment, a captured Signal App Store IPA, and at least one successful local Signal-iOS .xcarchive build.

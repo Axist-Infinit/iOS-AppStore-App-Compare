@@ -1,0 +1,38 @@
+{
+  "artifacts": [],
+  "hash_mode": "notable",
+  "normalization": {
+    "expected_substitutions": [
+      {
+        "from": "org.whispersystems.signal",
+        "to": "<BUNDLE_ID>"
+      },
+      {
+        "from": "group.org.whispersystems.signal",
+        "to": "<APP_GROUP>"
+      },
+      {
+        "from": "YOURTEAMID",
+        "to": "<TEAM_ID>"
+      },
+      {
+        "from": "SIGNALTEAMID",
+        "to": "<TEAM_ID>"
+      }
+    ],
+    "ignore_line_regex": [
+      "Authority=",
+      "Timestamp=",
+      "CDHash=",
+      "TeamIdentifier=",
+      "^\\s*\"sha256\""
+    ]
+  },
+  "project": "Signal iOS metadata release sweep - existing archives only",
+  "reference": {
+    "id": "signal_appstore_reference",
+    "label": "Signal App Store IPA captured from the App Store",
+    "path": "artifacts/appstore/Signal-AppStore.ipa",
+    "role": "appstore_reference"
+  }
+}

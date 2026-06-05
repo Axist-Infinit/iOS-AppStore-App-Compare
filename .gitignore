@@ -1,0 +1,12 @@
+artifacts/appstore/*.ipa
+artifacts/local/*.ipa
+artifacts/local/*.app
+artifacts/local/*.xcarchive
+out/*
+!out/.keep
+*.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/

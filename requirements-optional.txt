@@ -1,0 +1,14 @@
+# Optional accelerators. The kit runs fully WITHOUT these.
+#
+# The comparison engine extracts Mach-O load metadata and code-signature
+# entitlements on Linux/WSL using the built-in, dependency-free reader
+# (scripts/macho.py + scripts/macho_backend.py). Nothing here is required for the
+# Phase 0 metadata/signing comparison.
+#
+# Installing LIEF enables the richer code-surface extraction planned for the
+# next phase (symbol tables, Obj-C/Swift class metadata) on unencrypted binaries
+# without needing macOS class-dump/nm.
+#
+#   python3 -m pip install -r requirements-optional.txt
+#
+lief>=0.14.0
