@@ -50,6 +50,18 @@ tests/test_macho.py         # crafted-binary unit + integration tests (stdlib un
 requirements-optional.txt   # optional LIEF accelerator (not required)
 ```
 
+PoC helper tools (Phase 1 follow-on):
+
+```text
+scripts/doctor.py                     # preflight: tools, backend, artifacts, blockers
+scripts/ipa_version.py                # read CFBundle*; match Signal tag + nearby controls; emit config
+scripts/make_normalization_profile.py # detect local team/bundle/app-group/keychain -> normalization JSON
+tests/test_engine.py                  # zip-slip, config validation, build-status, html, parallel
+tests/test_tools.py                   # doctor / ipa_version / normalization-profile tests
+```
+
+Run all tests with `python3 -m unittest discover -s tests` (42 tests, stdlib only).
+
 The engine now runs on Linux/WSL as well as macOS. Tool functions
 (`otool_*`, `codesign_*`, `vtool_build`, `lipo_archs`, `provisioning_profile`)
 delegate to `BACKEND` (`macho_backend.select_backend()`). The portable backend

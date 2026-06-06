@@ -6,6 +6,21 @@
 > commands, linked libraries, encryption flags, identifiers). Force a backend
 > with `--backend native|portable` or `IOS_META_BACKEND=...`.
 
+## 0. Preflight
+
+Confirm the machine can run the workflow, and (once you have an IPA) find the
+source tag to compare against:
+
+```bash
+python3 scripts/doctor.py
+python3 scripts/ipa_version.py artifacts/appstore/Signal-AppStore.ipa \
+    --nearby 2 --suggest-config config.poc.json
+```
+
+`doctor.py` lists tools, the active backend, and any blockers. `ipa_version.py`
+reads the captured build, picks the exact Signal-iOS tag plus nearby controls,
+and can emit a ready-to-run config.
+
 ## 1. Capture the App Store IPA
 
 ### Option A — ipatool (scriptable, cross-platform)
