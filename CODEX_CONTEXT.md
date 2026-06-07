@@ -56,11 +56,31 @@ PoC helper tools (Phase 1 follow-on):
 scripts/doctor.py                     # preflight: tools, backend, artifacts, blockers
 scripts/ipa_version.py                # read CFBundle*; match Signal tag + nearby controls; emit config
 scripts/make_normalization_profile.py # detect local team/bundle/app-group/keychain -> normalization JSON
-tests/test_engine.py                  # zip-slip, config validation, build-status, html, parallel
-tests/test_tools.py                   # doctor / ipa_version / normalization-profile tests
+tests/test_engine.py                  # zip-slip, config validation, build-status, html, parallel, provenance, triage
+tests/test_tools.py                   # doctor / ipa_version / normalization-profile / run_poc tests
 ```
 
-Run all tests with `python3 -m unittest discover -s tests` (42 tests, stdlib only).
+Evidence, triage, orchestration, and the opt-in decryption tier:
+
+```text
+scripts/run_poc.py                    # one-command: doctor -> version -> config -> compare -> report
+scripts/decrypt_on_device.sh          # OPT-IN, owned-device: orchestrate bagbak/frida-ios-dump, verify cryptid 0
+scripts/frida/enumerate_modules.js    # read-only runtime module/ObjC enumeration
+docs/decryption_runbook.md            # on-device decryption workflow + boundary
+docs/sample_report.md                 # synthetic/redacted sample output
+```
+
+Engine additions: each manifest carries a `provenance` block (artifact sha256 or
+directory structure digest, backend, host, git_ref, declared capture metadata);
+findings carry a `triage` class (`classify_finding`) and the report has
+Provenance, Conclusion, and Triage-summary sections. Config artifacts may include
+a `provenance` dict (declared capture metadata), carried verbatim.
+
+Boundary: the decryption tier only orchestrates a standard dumper on a device the
+operator owns and adds no code-sign/DRM/protection-bypass logic. Do not add such
+logic or any redistribution path.
+
+Run all tests with `python3 -m unittest discover -s tests` (49 tests, stdlib only).
 
 The engine now runs on Linux/WSL as well as macOS. Tool functions
 (`otool_*`, `codesign_*`, `vtool_build`, `lipo_archs`, `provisioning_profile`)

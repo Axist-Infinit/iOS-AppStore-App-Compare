@@ -4,7 +4,7 @@ A structured lab for comparing a captured Signal App Store IPA against locally b
 
 This kit is designed for cybersecurity research, app-assessment documentation, and repeatable release sweeps. It is deliberately scoped to metadata, package structure, signing metadata, entitlements, privacy manifests, resources, and Mach-O load metadata.
 
-It does **not** decrypt FairPlay, bypass DRM, patch code signatures, dump process memory, or recover protected App Store executable code.
+The core engine does **not** decrypt, bypass DRM, patch code signatures, dump process memory, or recover protected App Store executable code. A separate, gated, owned-device decryption tier (`scripts/decrypt_on_device.sh`) is opt-in only — see [Scope and boundaries](#scope-and-boundaries).
 
 ---
 
@@ -140,19 +140,30 @@ Allowed/comparative surfaces:
 - SDK/minimum OS/build metadata,
 - App Store FairPlay encryption flag values such as `cryptid`.
 
-Explicitly out of scope:
+Explicitly out of scope (the kit contains no such logic):
 
-- FairPlay decryption,
 - DRM circumvention,
-- jailbreak dumping workflows,
-- process-memory dumping,
 - patching App Store binaries,
 - bypassing code signing,
 - bypassing TLS pinning,
 - bypassing app protections,
 - recovering or redistributing protected App Store executable code.
 
-The scripts inspect what is already present in lawful local artifacts. They do not modify App Store packages.
+The core comparison engine inspects what is already present in lawful local
+artifacts and does not modify App Store packages.
+
+### Opt-in tier: on-device decryption (owned device)
+
+There is one **opt-in, gated** tier — `scripts/decrypt_on_device.sh` and
+`docs/decryption_runbook.md` — that *orchestrates a standard open-source dumper*
+(`bagbak` / `frida-ios-dump`) to capture the already-in-memory-decrypted image of
+an app **on a jailbroken device you own**, so the shipped binary's code surface
+can be compared against a source build. This is standard OWASP MASTG security
+research. It refuses to run without an explicit `--i-own-this-device` flag, adds
+no decryption/signing/bypass logic of its own, and is for analysis only — **do
+not redistribute decrypted or protected code**. It deliberately does **not**
+provide code-signing bypass, DRM circumvention, or protected-executable recovery
+for redistribution.
 
 ---
 

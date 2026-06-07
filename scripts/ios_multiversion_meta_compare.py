@@ -27,6 +27,7 @@ import hashlib
 import html
 import json
 import os
+import platform
 import plistlib
 import re
 import shutil
@@ -174,6 +175,9 @@ class ArtifactSpec:
     expected_build: str | None = None
     expected_git_ref: str | None = None
     notes: str | None = None
+    # Optional, operator-supplied capture/build provenance (date, device, iOS
+    # version, signing team, build command, commit). Recorded verbatim.
+    declared_provenance: dict[str, Any] | None = None
 
 @dataclass
 class Finding:
@@ -231,6 +235,57 @@ def maybe_rel(path: Path, root: Path) -> str:
         return str(path.relative_to(root))
     except ValueError:
         return str(path)
+
+
+def artifact_identity(path: Path) -> dict[str, Any]:
+    """A reproducible identity for an input artifact.
+
+    For a file (e.g. an .ipa) this is its SHA-256. For a directory (.app /
+    .xcarchive) it is a structure digest over (relative path, size) of every
+    file, which is stable without hashing multi-hundred-MB payloads.
+    """
+    if path.is_file():
+        return {
+            "input_kind": "file",
+            "artifact_sha256": sha256_file(path),
+            "size_bytes": path.stat().st_size,
+        }
+    if path.is_dir():
+        h = hashlib.sha256()
+        total = 0
+        count = 0
+        for p in sorted(path.rglob("*"), key=lambda x: str(x)):
+            if p.is_file() and not p.is_symlink():
+                rel = maybe_rel(p, path)
+                size = p.stat().st_size
+                h.update(rel.encode("utf-8") + b"\0" + str(size).encode("ascii") + b"\n")
+                total += size
+                count += 1
+        return {
+            "input_kind": "directory",
+            "structure_digest_sha256": h.hexdigest(),
+            "file_count": count,
+            "size_bytes": total,
+        }
+    return {"input_kind": "missing"}
+
+
+def build_provenance(spec: "ArtifactSpec") -> dict[str, Any]:
+    identity = artifact_identity(spec.path)
+    return {
+        "input_path": str(spec.path),
+        **identity,
+        "backend": BACKEND.name,
+        "host": {
+            "platform": platform.platform(),
+            "python": platform.python_version(),
+        },
+        "git_ref": spec.expected_git_ref,
+        "expected_version": spec.expected_version,
+        "expected_build": spec.expected_build,
+        "captured_at_utc": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "declared": spec.declared_provenance or {},
+    }
 
 
 # Serializes IPA extraction so parallel workers can't race on the same
@@ -534,6 +589,7 @@ def build_manifest(spec: ArtifactSpec, work_dir: Path, hash_mode: str) -> dict[s
             "expected_git_ref": spec.expected_git_ref,
             "notes": spec.notes,
         },
+        "provenance": build_provenance(spec),
         "app_root_resolved": str(app_root),
         "main": {
             "info_subset": info_subset(info),
@@ -645,11 +701,14 @@ def artifact_matrix_row(m: dict[str, Any]) -> dict[str, Any]:
     bundle_paths = inv.get("bundle_paths", []) or []
     appex = [p for p in bundle_paths if p.endswith(".appex")]
     frameworks = [p for p in bundle_paths if p.endswith(".framework")]
+    prov = m.get("provenance", {}) or {}
+    identity = prov.get("artifact_sha256") or prov.get("structure_digest_sha256") or ""
     return {
         "artifact_id": m.get("artifact", {}).get("id"),
         "role": m.get("artifact", {}).get("role"),
         "label": m.get("artifact", {}).get("label"),
         "input_path": m.get("artifact", {}).get("input_path"),
+        "identity_sha256": identity[:16],
         "bundle_id": info.get("CFBundleIdentifier"),
         "short_version": info.get("CFBundleShortVersionString"),
         "build_version": info.get("CFBundleVersion"),
@@ -833,16 +892,123 @@ def finding_evidence(f: Finding) -> str:
     return f"diffs/{f.reference}_vs_{f.compared}/{fname}.diff"
 
 
+# Triage classes, ordered most-interesting first for reporting.
+TRIAGE_CLASSES = [
+    "high_signal_unexplained",
+    "appstore_packaging",
+    "release_drift",
+    "expected_build_noise",
+    "expected_signing_noise",
+]
+
+_TRIAGE_LABELS = {
+    "high_signal_unexplained": "High-signal (investigate)",
+    "appstore_packaging": "App Store packaging",
+    "release_drift": "Release-to-release drift",
+    "expected_build_noise": "Expected local-build noise",
+    "expected_signing_noise": "Expected signing noise",
+}
+
+
+def _finding_key(summary: str) -> str:
+    return summary.split(" differs", 1)[0].strip() if " differs" in summary else summary.strip()
+
+
+def classify_finding(f: Finding) -> str:
+    """Bucket a finding so reviewers can separate noise from real differences."""
+    if f.category == "FairPlay boundary":
+        return "appstore_packaging"
+    key = _finding_key(f.summary)
+    if f.category == "Entitlements":
+        if key == "get-task-allow":
+            return "expected_build_noise"
+        if key in EXPECTED_NOISE_KEYS:
+            return "expected_signing_noise"
+        return "high_signal_unexplained"
+    if f.category == "Info.plist":
+        if key in {"CFBundleShortVersionString", "CFBundleVersion"}:
+            return "release_drift"
+        if key in {"DTSDKName", "DTSDKBuild", "DTXcode", "DTXcodeBuild", "DTPlatformVersion"}:
+            return "expected_build_noise"
+        if key == "CFBundleIdentifier":
+            return "expected_signing_noise"
+        return "high_signal_unexplained"
+    # Binaries, Bundle inventory, Privacy manifests, and anything else are
+    # capability/package-surface differences worth a look.
+    return "high_signal_unexplained"
+
+
 def finding_to_row(f: Finding) -> dict[str, str]:
     return {
         "severity": f.severity,
         "category": f.category,
+        "triage": classify_finding(f),
         "reference": f.reference,
         "compared": f.compared,
         "summary": f.summary,
         "detail": f.detail,
         "evidence": finding_evidence(f),
     }
+
+
+def build_conclusion(reference_id: str, manifests: dict[str, dict[str, Any]], findings: list[Finding]) -> list[str]:
+    """A semi-automatic conclusion template, pre-filled where the data allows."""
+    rows = {m.get("artifact", {}).get("id"): artifact_matrix_row(m) for m in manifests.values()}
+    ref_row = rows.get(reference_id, {})
+    lines: list[str] = []
+
+    # Pick the exact comparator (role marked exact, else first non-reference).
+    exact_id = None
+    for m in manifests.values():
+        rid = m.get("artifact", {}).get("id")
+        role = m.get("artifact", {}).get("role", "")
+        if rid != reference_id and "exact" in role:
+            exact_id = rid
+            break
+    if exact_id is None:
+        exact_id = next((rid for rid in rows if rid != reference_id), None)
+
+    def yn(flag: bool) -> str:
+        return "MATCH" if flag else "DIFFERS"
+
+    if exact_id:
+        c = rows.get(exact_id, {})
+        ver_match = (ref_row.get("short_version") == c.get("short_version")
+                     and ref_row.get("build_version") == c.get("build_version"))
+        struct_match = (ref_row.get("extension_count") == c.get("extension_count")
+                        and ref_row.get("framework_count") == c.get("framework_count"))
+        lines.append(f"Primary comparator: `{exact_id}` vs reference `{reference_id}`.")
+        lines.append("")
+        lines.append(f"- Version/build: **{yn(ver_match)}** "
+                     f"(ref {ref_row.get('short_version')}/{ref_row.get('build_version')}, "
+                     f"cmp {c.get('short_version')}/{c.get('build_version')})")
+        lines.append(f"- Extension + framework counts: **{yn(struct_match)}** "
+                     f"(ref {ref_row.get('extension_count')}/{ref_row.get('framework_count')}, "
+                     f"cmp {c.get('extension_count')}/{c.get('framework_count')})")
+    else:
+        lines.append("_No comparator artifact was available; fill in manually._")
+        lines.append("")
+
+    counts = finding_class_counts(findings)
+    lines.append(f"- High-signal unexplained findings: **{counts.get('high_signal_unexplained', 0)}** "
+                 "(review these first)")
+    ref_cryptid = ref_row.get("main_cryptid") or ""
+    if "1" in ref_cryptid.split(","):
+        lines.append("- FairPlay: reference main executable is encrypted (`cryptid 1`); App Store "
+                     "code/string analysis requires a lawful unencrypted build or an on-device "
+                     "decrypted copy. Metadata/package comparison above is unaffected.")
+    lines.append("")
+    lines.append("_Fill in: privacy-manifest deltas, entitlement deltas beyond signing noise, and "
+                 "any production-only extension/framework before signing off._")
+    return lines
+
+
+def finding_class_counts(findings: list[Finding]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for f in findings:
+        cls = classify_finding(f)
+        counts[cls] = counts.get(cls, 0) + 1
+    return counts
 
 
 def markdown_table(rows: list[dict[str, Any]], columns: list[str]) -> str:
@@ -866,13 +1032,16 @@ def render_report(project: str, reference_id: str, manifests: dict[str, dict[str
                   build_status: dict[str, Any] | None = None, skipped: list[dict[str, str]] | None = None) -> str:
     generated = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     rows = [artifact_matrix_row(m) for m in manifests.values()]
-    # Findings table links each row to the diff file backing it.
+    # Findings table: ordered high-signal first, each linked to its diff file.
+    _order = {cls: i for i, cls in enumerate(TRIAGE_CLASSES)}
+    ordered_findings = sorted(findings, key=lambda f: _order.get(classify_finding(f), 99))
     finding_rows = []
-    for f in findings:
+    for f in ordered_findings:
         row = finding_to_row(f)
         ev = row.get("evidence") or ""
         row["evidence"] = f"[{ev.rsplit('/', 1)[-1]}]({ev})" if ev else ""
         finding_rows.append(row)
+    class_counts = finding_class_counts(findings)
 
     text = []
     text.append(f"# {project}: iOS metadata comparison report")
@@ -899,6 +1068,38 @@ def render_report(project: str, reference_id: str, manifests: dict[str, dict[str
         "get_task_allow", "macho_count", "extension_count", "framework_count", "privacy_manifest_count",
     ]))
     text.append("")
+    text.append("## Provenance")
+    text.append("")
+    text.append("Evidence identity per artifact (file SHA-256, or a structure digest for directory artifacts), plus the backend and any operator-declared capture metadata.")
+    text.append("")
+    prov_rows = []
+    for m in manifests.values():
+        prov = m.get("provenance", {}) or {}
+        declared = prov.get("declared", {}) or {}
+        prov_rows.append({
+            "artifact_id": m.get("artifact", {}).get("id"),
+            "kind": prov.get("input_kind"),
+            "identity_sha256": (prov.get("artifact_sha256") or prov.get("structure_digest_sha256") or "")[:32],
+            "size_bytes": prov.get("size_bytes"),
+            "git_ref": prov.get("git_ref"),
+            "backend": prov.get("backend"),
+            "declared": "; ".join(f"{k}={v}" for k, v in declared.items()) if declared else "",
+        })
+    text.append(markdown_table(prov_rows, ["artifact_id", "kind", "identity_sha256", "size_bytes", "git_ref", "backend", "declared"]))
+    text.append("")
+    text.append("## Conclusion")
+    text.append("")
+    text.extend(build_conclusion(reference_id, manifests, findings))
+    text.append("")
+    text.append("## Triage summary")
+    text.append("")
+    text.append("Findings grouped so signing/build noise is separated from real package/capability differences.")
+    text.append("")
+    text.append(markdown_table(
+        [{"triage_class": _TRIAGE_LABELS[c], "count": class_counts.get(c, 0)} for c in TRIAGE_CLASSES],
+        ["triage_class", "count"],
+    ))
+    text.append("")
     if skipped:
         text.append(f"Artifacts skipped (missing/unbuildable): **{len(skipped)}** — see `csv/skipped.csv`.")
         text.append("")
@@ -916,7 +1117,7 @@ def render_report(project: str, reference_id: str, manifests: dict[str, dict[str
     text.append("## Findings")
     text.append("")
     if finding_rows:
-        text.append(markdown_table(finding_rows, ["severity", "category", "reference", "compared", "summary", "detail", "evidence"]))
+        text.append(markdown_table(finding_rows, ["severity", "triage", "category", "compared", "summary", "detail", "evidence"]))
     else:
         text.append("No automated findings were generated. That usually means either the artifacts are highly similar or the tools needed to extract signing/binary metadata were unavailable. Review raw diffs.")
     text.append("")
@@ -1046,6 +1247,7 @@ def specs_from_config(config: dict[str, Any], base_dir: Path) -> tuple[str, Arti
             expected_build=item.get("expected_build"),
             expected_git_ref=item.get("expected_git_ref"),
             notes=item.get("notes"),
+            declared_provenance=item.get("provenance"),
         )
 
     reference = spec(reference_raw, "appstore_reference")

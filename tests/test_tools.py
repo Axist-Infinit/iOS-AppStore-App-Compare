@@ -126,6 +126,47 @@ class NormalizationProfileTests(unittest.TestCase):
             self.assertTrue(any(s["to"] == "<TEAM_ID>" for s in profile["expected_substitutions"]))
 
 
+class RunPocTests(unittest.TestCase):
+    def test_end_to_end_with_present_archive(self):
+        import csv as _csv
+        import run_poc  # noqa: E402
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            tag = "8.13.0.1623"
+            # matrix
+            matrix = root / "matrix.csv"
+            with matrix.open("w", newline="") as f:
+                w = _csv.DictWriter(f, fieldnames=["index", "tag_name", "expected_version", "expected_build",
+                                                   "expected_git_ref", "published_at", "local_archive_path", "artifact_id"])
+                w.writeheader()
+                w.writerow({"index": "1", "tag_name": tag, "expected_version": "8.13", "expected_build": tag,
+                            "expected_git_ref": tag, "published_at": "2026-06-01",
+                            "local_archive_path": f"artifacts/local/Signal-{tag}.xcarchive",
+                            "artifact_id": f"signal_local_{tag}"})
+            # appstore IPA (encrypted) at <root>/appstore/
+            (root / "appstore").mkdir()
+            _write_ipa(root / "appstore" / "Signal-AppStore.ipa", "8.13", tag)
+            # matching local archive at <config_parent>/artifacts/local/...
+            app = root / "artifacts" / "local" / f"Signal-{tag}.xcarchive" / "Products" / "Applications" / "Signal.app"
+            app.mkdir(parents=True)
+            (app / "Signal").write_bytes(build_macho(cryptid=0))
+            with (app / "Info.plist").open("wb") as f:
+                plistlib.dump({"CFBundleExecutable": "Signal", "CFBundleIdentifier": IDENT,
+                               "CFBundleShortVersionString": "8.13", "CFBundleVersion": tag}, f)
+
+            rc = run_poc.main([
+                "--appstore", str(root / "appstore" / "Signal-AppStore.ipa"),
+                "--matrix", str(matrix),
+                "--limit-nearby", "0",
+                "--config-out", str(root / "config.poc.json"),
+                "--out", str(root / "out"),
+            ])
+            self.assertEqual(rc, 0)
+            self.assertTrue((root / "out" / "report.html").exists())
+            self.assertTrue((root / "config.poc.json").exists())
+
+
 class DoctorTests(unittest.TestCase):
     def test_gather_runs_and_flags_missing_artifacts(self):
         with tempfile.TemporaryDirectory() as td:

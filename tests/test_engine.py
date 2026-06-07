@@ -194,5 +194,70 @@ class ParallelDeterminismTests(unittest.TestCase):
             self.assertEqual(ids, ["ref", "c0", "c1", "c2", "c3", "c4"])  # config order preserved
 
 
+class ProvenanceTests(unittest.TestCase):
+    def test_file_identity_is_sha256(self):
+        with tempfile.TemporaryDirectory() as td:
+            f = Path(td) / "a.ipa"
+            f.write_bytes(b"hello")
+            ident = engine.artifact_identity(f)
+            self.assertEqual(ident["input_kind"], "file")
+            self.assertEqual(len(ident["artifact_sha256"]), 64)
+            self.assertEqual(ident["size_bytes"], 5)
+
+    def test_dir_identity_is_structure_digest(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td) / "x.app"
+            d.mkdir()
+            (d / "f1").write_bytes(b"aa")
+            (d / "f2").write_bytes(b"bbb")
+            ident = engine.artifact_identity(d)
+            self.assertEqual(ident["input_kind"], "directory")
+            self.assertEqual(ident["file_count"], 2)
+            self.assertEqual(len(ident["structure_digest_sha256"]), 64)
+
+    def test_declared_provenance_flows_into_manifest(self):
+        with tempfile.TemporaryDirectory() as td:
+            app = _make_app(Path(td), "ref", "8.13", "8.13.0.1623", cryptid=1)
+            spec = engine.ArtifactSpec(
+                artifact_id="ref", path=app, role="appstore_reference",
+                expected_git_ref="8.13.0.1623",
+                declared_provenance={"capture_device": "iPhone15,2", "ios_version": "17.4", "capture_date": "2026-06-01"},
+            )
+            work = Path(td) / "work"; work.mkdir()
+            manifest = engine.build_manifest(spec, work, "none")
+            prov = manifest["provenance"]
+            self.assertEqual(prov["declared"]["capture_device"], "iPhone15,2")
+            self.assertEqual(prov["git_ref"], "8.13.0.1623")
+            self.assertIn("structure_digest_sha256", prov)
+
+
+class TriageTests(unittest.TestCase):
+    def _f(self, category, summary):
+        return engine.Finding("high", category, "ref", "cand", summary, "")
+
+    def test_classification(self):
+        self.assertEqual(engine.classify_finding(self._f("FairPlay boundary", "x")), "appstore_packaging")
+        self.assertEqual(engine.classify_finding(self._f("Info.plist", "CFBundleVersion differs")), "release_drift")
+        self.assertEqual(engine.classify_finding(self._f("Info.plist", "DTSDKName differs")), "expected_build_noise")
+        self.assertEqual(engine.classify_finding(self._f("Entitlements", "get-task-allow differs")), "expected_build_noise")
+        self.assertEqual(engine.classify_finding(self._f("Entitlements", "keychain-access-groups differs")), "expected_signing_noise")
+        self.assertEqual(engine.classify_finding(self._f("Entitlements", "com.apple.developer.associated-domains differs")), "high_signal_unexplained")
+        self.assertEqual(engine.classify_finding(self._f("Binaries", "Mach-O file set differs")), "high_signal_unexplained")
+
+    def test_finding_row_has_triage(self):
+        row = engine.finding_to_row(self._f("Entitlements", "get-task-allow differs"))
+        self.assertEqual(row["triage"], "expected_build_noise")
+
+    def test_class_counts(self):
+        findings = [
+            self._f("Info.plist", "CFBundleVersion differs"),
+            self._f("Info.plist", "CFBundleShortVersionString differs"),
+            self._f("Binaries", "Mach-O file set differs"),
+        ]
+        counts = engine.finding_class_counts(findings)
+        self.assertEqual(counts["release_drift"], 2)
+        self.assertEqual(counts["high_signal_unexplained"], 1)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
