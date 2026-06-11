@@ -30,7 +30,8 @@ The core engine does **not** decrypt, bypass DRM, patch code signatures, dump pr
 18. [Troubleshooting](#troubleshooting)
 19. [Quality gates](#quality-gates)
 20. [Roadmap for extending the kit](#roadmap-for-extending-the-kit)
-21. [Reference links](#reference-links)
+21. [Android: matching bundled open-source libraries](#android-matching-bundled-open-source-libraries)
+22. [Reference links](#reference-links)
 
 ---
 
@@ -1300,6 +1301,80 @@ Keep all extensions inside the metadata/source-build comparison boundary.
 
 ---
 
+## Android: matching bundled open-source libraries
+
+The same core idea behind this kit — *collect known reference versions,
+fingerprint each, match the unknown artifact, report best match plus drift* —
+extends from "a whole open-source iOS app" to "an open-source **library** bundled
+inside an app," and to **Android**. Android is actually an easier target than
+iOS: APK/AAR/DEX bytecode is not FairPlay-encrypted, so the code surface is
+readable.
+
+The hard case it is built for: **a compiled Android library whose version
+metadata has been stripped and whose symbols have been obfuscated by
+R8/ProGuard.** Names, strings, and version fields can't be trusted, so matching
+runs on **obfuscation-resilient structural fingerprints** instead.
+
+### Why it survives obfuscation
+
+R8/ProGuard rename a library's own classes/members but **cannot** rename
+references to the platform SDK (`java/*`, `android/*`, `kotlin/*`, …) or change
+the *shape* of the code (method/field counts, argument shapes, type
+relationships). Each class is fingerprinted from exactly those surviving
+properties: method/field descriptors with internal types wildcarded to `L*;`,
+framework types kept verbatim, the class's own name discarded, members sorted.
+The resulting 64-bit class signature is identical before and after obfuscation —
+and identical whether the class was compiled to JVM `.class` (how Maven ships a
+library) or Dalvik `.dex` (how it lands in an APK). That cross-format equality is
+what lets a Maven AAR/JAR reference match an obfuscated DEX candidate.
+
+Presence is scored by **set containment** (the app is a superset of the library),
+and the bundled version is the containment peak across a library's versions.
+
+### Components (standard library only — no apktool/dex2jar/JVM)
+
+```text
+scripts/harvest_maven_library.py   Download every published version of a
+                                   group:artifact (AAR/JAR) -> reference corpus.
+scripts/android_bytecode.py        Pure-Python JVM .class + Dalvik .dex readers.
+scripts/android_fingerprint.py     Structural signatures, MinHash, containment.
+scripts/android_lib_match.py       CLI: fingerprint / build-corpus / match + report.
+config.android.example.json        Example corpus + candidate pointer.
+docs/android_library_matching.md   Full methodology, limits, and prior art.
+```
+
+### Quick workflow
+
+```bash
+# 1. Build a reference corpus of known versions (Maven Central or Google Maven).
+python3 scripts/harvest_maven_library.py \
+  --coordinate com.squareup.okhttp3:okhttp --out corpus/okhttp
+#    (or just drop AAR/JAR/APK files into a folder yourself)
+
+# 2. Fingerprint the corpus.
+python3 scripts/android_lib_match.py build-corpus \
+  --in corpus/okhttp --out corpus/okhttp.corpus.jsonl
+
+# 3. Match an unknown app against it.
+python3 scripts/android_lib_match.py match \
+  --candidate app-release.apk \
+  --corpus corpus/okhttp.corpus.jsonl \
+  --out out/okhttp_match
+
+open out/okhttp_match/report.html
+```
+
+The report gives a per-library verdict (present / strong / partial) and a
+**containment-by-version** table: a single peak identifies the bundled version;
+a plateau means those versions are structurally indistinguishable from bytecode
+alone (the report says so). This is read-only Software Composition Analysis — no
+decryption, deobfuscation, repackaging, or execution — consistent with the kit's
+scope boundary. Full methodology, honest limits (dead-code elimination, string
+encryption, commercial control-flow obfuscation), and prior-art references are in
+[`docs/android_library_matching.md`](docs/android_library_matching.md).
+
+---
+
 ## Reference links
 
 Official/project references:
@@ -1325,6 +1400,25 @@ https://github.com/openai/codex
 
 OpenAI Codex app documentation:
 https://developers.openai.com/codex/app
+```
+
+Android library-matching references:
+
+```text
+Maven Central repository layout:
+https://repo1.maven.org/maven2
+
+Google Maven repository:
+https://dl.google.com/dl/android/maven2
+
+Dalvik .dex format specification:
+https://source.android.com/docs/core/runtime/dex-format
+
+JVM class file format (JVMS chapter 4):
+https://docs.oracle.com/javase/specs/jvms/se17/html/jvms-4.html
+
+LibScout (obfuscation-resilient third-party library detection):
+https://github.com/reddr/LibScout
 ```
 
 Local kit references:

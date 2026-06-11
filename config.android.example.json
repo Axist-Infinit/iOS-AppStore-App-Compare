@@ -1,0 +1,25 @@
+{
+  "_comment": "Example pointer for the Android bundled-library matcher. The canonical interface is the three subcommands of scripts/android_lib_match.py (fingerprint / build-corpus / match); this file just records a repeatable run. See docs/android_library_matching.md.",
+  "candidate": "artifacts/android/app-release.apk",
+  "candidate_name": "target-app",
+  "corpus": "corpus/okhttp.corpus.jsonl",
+  "out": "out/android_okhttp_match",
+  "min_containment": 0.10,
+  "strong_threshold": 0.70,
+  "top": 12,
+  "corpus_sources": [
+    {
+      "coordinate": "com.squareup.okhttp3:okhttp",
+      "repo": "central",
+      "harvest": "python3 scripts/harvest_maven_library.py --coordinate com.squareup.okhttp3:okhttp --out corpus/okhttp",
+      "build": "python3 scripts/android_lib_match.py build-corpus --in corpus/okhttp --out corpus/okhttp.corpus.jsonl"
+    },
+    {
+      "coordinate": "androidx.core:core",
+      "repo": "google",
+      "harvest": "python3 scripts/harvest_maven_library.py --coordinate androidx.core:core --repo google --out corpus/androidx-core",
+      "build": "python3 scripts/android_lib_match.py build-corpus --in corpus/androidx-core --out corpus/androidx-core.corpus.jsonl"
+    }
+  ],
+  "match_command": "python3 scripts/android_lib_match.py match --candidate artifacts/android/app-release.apk --corpus corpus/okhttp.corpus.jsonl --out out/android_okhttp_match"
+}
