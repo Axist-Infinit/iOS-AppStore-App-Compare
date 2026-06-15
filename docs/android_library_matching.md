@@ -252,7 +252,22 @@ repackaging, or execution, matching the kit's overall scope boundary.
 
 ---
 
-## 7. Validation
+## 7. Runnable demo
+
+A committed, offline worked example lives in `examples/android_demo/`:
+
+```bash
+bash examples/android_demo/run_demo.sh
+```
+
+It ships a synthetic library `demolib` as three JVM JARs (the corpus) and an
+obfuscated, version-stripped DEX-in-APK candidate that bundles 1.1.0 under
+renamed packages/classes/members. The matcher recovers `demolib 1.1.0` at
+containment 1.000 across the JVM→DEX format gap. See
+`examples/android_demo/README.md` for the per-version score table and how the
+1.0.0-vs-1.1.0 plateau and the 2.0.0 structural change are resolved.
+
+## 8. Validation
 
 The approach is exercised by `tests/test_android.py`, which builds a real JVM
 `.class` and a real Dalvik `.dex` in memory and asserts:
@@ -271,7 +286,7 @@ python3 -m unittest discover -s tests
 
 ---
 
-## 8. Relationship to prior art
+## 9. Relationship to prior art
 
 The structural-signature approach is the standard, peer-reviewed technique for
 obfuscation-resilient third-party-library detection on Android — the

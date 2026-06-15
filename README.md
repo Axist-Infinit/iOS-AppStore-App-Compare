@@ -1364,6 +1364,23 @@ python3 scripts/android_lib_match.py match \
 open out/okhttp_match/report.html
 ```
 
+### Runnable demo (offline)
+
+A committed, fully offline worked example identifies an **obfuscated,
+version-stripped** library bundled (as DEX) inside an APK by matching it against
+a corpus of known versions shipped (as JVM JARs):
+
+```bash
+bash examples/android_demo/run_demo.sh
+# => demolib: best version 1.1.0 containment=1.000 (PRESENT, strong)
+```
+
+See [`examples/android_demo/README.md`](examples/android_demo/README.md) for the
+expected scores and what each column means. A regression test
+(`tests/test_android.py`) keeps the demo honest.
+
+### Reading the report
+
 The report gives a per-library verdict (present / strong / partial) and a
 **containment-by-version** table: a single peak identifies the bundled version;
 a plateau means those versions are structurally indistinguishable from bytecode

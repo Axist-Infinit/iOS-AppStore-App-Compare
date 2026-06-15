@@ -294,5 +294,41 @@ class TestRanking(unittest.TestCase):
         self.assertEqual(back.minhash, p.minhash)
 
 
+class TestWorkedExampleDemo(unittest.TestCase):
+    """The committed worked example must keep identifying the obfuscated,
+    version-stripped DEX candidate as demolib 1.1.0 via the JVM JAR corpus."""
+
+    def test_demo_identifies_bundled_version(self):
+        import tempfile
+        demo_dir = Path(__file__).resolve().parent.parent / "examples" / "android_demo"
+        sys.path.insert(0, str(demo_dir))
+        import generate_demo_artifacts as demo  # noqa: E402
+
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            # Reference corpus: JVM JARs, one per version.
+            references = []
+            for version, specs in demo.LIB_VERSIONS.items():
+                jar = tmp / f"demolib-{version}.jar"
+                demo.build_jar(specs, jar)
+                references.append(afp.build_profile(abc.load_units(jar), "demolib", version))
+
+            # Candidate: obfuscated DEX-in-APK bundling 1.1.0 + unrelated app classes.
+            candidate_specs = (demo.obfuscate(demo.LIB_VERSIONS[demo.BUNDLED_VERSION])
+                               + demo.noise_classes(40))
+            apk = tmp / "obfuscated-app.apk"
+            demo.build_apk(candidate_specs, apk)
+            cand_units = abc.load_units(apk)
+            self.assertIn("dex", cand_units.formats)   # candidate really is Dalvik
+            candidate = afp.build_profile(cand_units, "app", "")
+
+            best = afp.group_best_by_library(
+                afp.rank_versions(references, candidate, min_containment=0.1))
+            self.assertTrue(best)
+            self.assertEqual(best[0].name, "demolib")
+            self.assertEqual(best[0].version, demo.BUNDLED_VERSION)
+            self.assertAlmostEqual(best[0].containment, 1.0, places=6)
+
+
 if __name__ == "__main__":
     unittest.main()
