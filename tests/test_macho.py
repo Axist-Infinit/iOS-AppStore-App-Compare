@@ -85,6 +85,38 @@ def _code_directory(ident: str, team: str) -> bytes:
     return hdr + strings
 
 
+def _symtab_tables(defined: list[str], undefined: list[str]) -> tuple[bytes, bytes, int]:
+    """Build a 64-bit nlist symbol table + string table.
+
+    Returns ``(symbol_table_bytes, string_table_bytes, nsyms)``. The string
+    table conventionally starts with a NUL byte (index 0 = empty name), so real
+    names get nonzero ``n_strx``. Defined externals use ``n_type`` =
+    ``N_EXT|N_SECT`` with a nonzero section index; undefined externals use
+    ``n_type`` = ``N_EXT|N_UNDF`` with section 0.
+    """
+    strtab = bytearray(b"\x00")
+    str_offsets: dict[str, int] = {}
+
+    def add(name: str) -> int:
+        if name not in str_offsets:
+            str_offsets[name] = len(strtab)
+            strtab.extend(name.encode("utf-8") + b"\x00")
+        return str_offsets[name]
+
+    symtab = bytearray()
+    N_EXT = 0x01
+    N_SECT = 0x0E
+    N_UNDF = 0x00
+    for name in defined:
+        n_strx = add(name)
+        # n_strx(u32), n_type(u8), n_sect(u8), n_desc(u16), n_value(u64)
+        symtab += struct.pack("<IBBHQ", n_strx, N_EXT | N_SECT, 1, 0, 0x4000)
+    for name in undefined:
+        n_strx = add(name)
+        symtab += struct.pack("<IBBHQ", n_strx, N_EXT | N_UNDF, 0, 0, 0)
+    return bytes(symtab), bytes(strtab), len(defined) + len(undefined)
+
+
 def _code_signature(entitlements: dict) -> bytes:
     cd = _code_directory(IDENT, TEAM)
     xml = plistlib.dumps(entitlements, fmt=plistlib.FMT_XML)
@@ -101,7 +133,19 @@ def _code_signature(entitlements: dict) -> bytes:
     return sb
 
 
-def build_macho(entitlements: dict = ENTITLEMENTS, cryptid: int = 1) -> bytes:
+# Default synthetic symbol sets: one defined external (an exported class) plus a
+# Swift export, and one undefined external import resolved by the runtime.
+DEFINED_SYMBOLS = ["_OBJC_CLASS_$_SignalFoo", "_swift_demo"]
+UNDEFINED_SYMBOLS = ["_objc_msgSend"]
+
+
+def build_macho(entitlements: dict = ENTITLEMENTS, cryptid: int = 1,
+                defined_symbols: list[str] | None = None,
+                undefined_symbols: list[str] | None = None) -> bytes:
+    defined = DEFINED_SYMBOLS if defined_symbols is None else defined_symbols
+    undefined = UNDEFINED_SYMBOLS if undefined_symbols is None else undefined_symbols
+    symtab_bytes, strtab_bytes, nsyms = _symtab_tables(defined, undefined)
+
     lcs = [
         _dylib("/usr/lib/libSystem.B.dylib"),
         _dylib("/System/Library/Frameworks/Foundation.framework/Foundation"),
@@ -111,18 +155,29 @@ def build_macho(entitlements: dict = ENTITLEMENTS, cryptid: int = 1) -> bytes:
         _lc(macho.LC_UUID, bytes(range(16))),
     ]
     sig = _code_signature(entitlements)
-    # The code-signature load command is last; its dataoff points just past the
-    # load commands at the SuperBlob we append.
-    cs_lc = _lc(macho.LC_CODE_SIGNATURE, struct.pack("<II", 0, 0))
-    sizeofcmds = sum(len(x) for x in lcs) + len(cs_lc)
-    dataoff = 32 + sizeofcmds
-    cs_lc = _lc(macho.LC_CODE_SIGNATURE, struct.pack("<II", dataoff, len(sig)))
-    lcs.append(cs_lc)
+
+    # Two-pass layout: the symbol table, string table, and code-signature
+    # SuperBlob all live past the load commands. Build placeholder LCs first to
+    # learn sizeofcmds, then recompute file offsets and rebuild.
+    def assemble(symoff: int, stroff: int, cs_dataoff: int) -> tuple[bytes, int]:
+        symtab_lc = _lc(macho.LC_SYMTAB,
+                        struct.pack("<IIII", symoff, nsyms, stroff, len(strtab_bytes)))
+        cs_lc = _lc(macho.LC_CODE_SIGNATURE, struct.pack("<II", cs_dataoff, len(sig)))
+        all_lcs = lcs + [symtab_lc, cs_lc]
+        sizeofcmds = sum(len(x) for x in all_lcs)
+        return b"".join(all_lcs), sizeofcmds
+
+    _, sizeofcmds = assemble(0, 0, 0)
+    sym_off = 32 + sizeofcmds
+    str_off = sym_off + len(symtab_bytes)
+    cs_off = str_off + len(strtab_bytes)
+    lc_blob, sizeofcmds = assemble(sym_off, str_off, cs_off)
+
     header = struct.pack(
         "<IIIIIIII", MH_MAGIC_64, CPU_TYPE_ARM64, 0, MH_EXECUTE,
-        len(lcs), sizeofcmds, 0, 0,
+        len(lcs) + 2, sizeofcmds, 0, 0,
     )
-    return header + b"".join(lcs) + sig
+    return header + lc_blob + symtab_bytes + strtab_bytes + sig
 
 
 class MachOParserTests(unittest.TestCase):
@@ -177,6 +232,20 @@ class MachOParserTests(unittest.TestCase):
         self.assertEqual(ent["application-identifier"], f"{TEAM}.{IDENT}")
         self.assertEqual(ent["get-task-allow"], False)
         self.assertEqual(ent["aps-environment"], "production")
+
+    def test_symtab_defined_symbols(self):
+        defined = self.slice["defined_symbols"]
+        self.assertIn("_OBJC_CLASS_$_SignalFoo", defined)
+        self.assertIn("_swift_demo", defined)
+        # defined externals must be sorted and exclude the imports
+        self.assertEqual(defined, sorted(defined))
+        self.assertNotIn("_objc_msgSend", defined)
+
+    def test_symtab_undefined_symbols(self):
+        undefined = self.slice["undefined_symbols"]
+        self.assertIn("_objc_msgSend", undefined)
+        self.assertNotIn("_OBJC_CLASS_$_SignalFoo", undefined)
+        self.assertEqual(self.slice["nsyms"], 3)
 
     def test_non_macho(self):
         p = Path(self.tmp.name) / "notmacho"
