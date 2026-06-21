@@ -1,0 +1,68 @@
+name: CI
+
+# The kit is intentionally standard-library only, so CI needs no dependency
+# install step. It runs the unittest suite on Linux and macOS across supported
+# Python versions, plus a fast syntax gate. The portable Mach-O / bytecode
+# readers are exercised on Linux (where Apple tools are absent), which is exactly
+# the cross-platform path the framework is designed to support.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests (${{ matrix.os }} / py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Show environment
+        run: |
+          python --version
+          python -c "import platform; print(platform.platform())"
+
+      - name: Syntax gate (compileall)
+        run: python -m compileall -q scripts tests
+
+      - name: Run test suite
+        run: python -m unittest discover -s tests -v
+
+      - name: Smoke-test CLIs (help only, no artifacts required)
+        run: |
+          python scripts/ios_multiversion_meta_compare.py --help
+          python scripts/android_lib_match.py --help
+          python scripts/doctor.py || true
+
+  lint:
+    name: lint (ruff, non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: python -m pip install --upgrade ruff
+      - name: Ruff check
+        run: ruff check scripts tests
