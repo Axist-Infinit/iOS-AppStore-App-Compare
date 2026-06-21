@@ -61,6 +61,16 @@ LC_VERSION_MIN_IPHONEOS = 0x25
 LC_VERSION_MIN_TVOS = 0x2F
 LC_VERSION_MIN_WATCHOS = 0x30
 LC_CODE_SIGNATURE = 0x1D
+LC_SYMTAB = 0x02
+
+# --- nlist (symbol table) constants ----------------------------------------
+N_STAB = 0xE0   # debug-symbol mask: any of these bits -> a STABS debug entry
+N_TYPE = 0x0E   # mask selecting the type field of n_type
+N_EXT = 0x01    # external-symbol bit
+N_SECT = 0x0E   # type: defined in the section given by n_sect
+N_UNDF = 0x00   # type: undefined (an import to be resolved at load)
+# Cap to keep a pathological/corrupt symtab from exhausting memory.
+_MAX_SYMBOLS = 200000
 
 _DYLIB_COMMANDS = {
     LC_LOAD_DYLIB: "LC_LOAD_DYLIB",
@@ -142,6 +152,9 @@ class Slice:
     cs_flags: int | None = None
     entitlements: Any = None
     der_entitlements_present: bool = False
+    defined_symbols: list[str] = field(default_factory=list)
+    undefined_symbols: list[str] = field(default_factory=list)
+    nsyms: int = 0
     errors: list[str] = field(default_factory=list)
 
 
@@ -198,6 +211,69 @@ def _parse_code_directory(blob: bytes, off: int, length: int, sl: Slice) -> None
         team_offset = struct.unpack_from(">I", blob, off + 48)[0]
         if team_offset:
             sl.team_identifier = _cstr(blob, off + team_offset, off + length)
+
+
+def _mm_cstr(mm: mmap.mmap, start: int, limit: int) -> str:
+    """Read a NUL-terminated string from the mmap, bounded by ``limit``."""
+    if start < 0 or start >= limit:
+        return ""
+    end = mm.find(b"\x00", start, limit)
+    if end == -1:
+        end = limit
+    return mm[start:end].decode("utf-8", errors="replace")
+
+
+def _parse_symtab(mm: mmap.mmap, base: int, endian: str, sl: Slice,
+                  symoff: int, nsyms: int, stroff: int, strsize: int) -> None:
+    """Parse an ``LC_SYMTAB`` symbol/string table into defined/undefined sets.
+
+    The symbol table (``nlist``/``nlist_64``) and string table live in
+    ``__LINKEDIT`` at file offsets relative to the slice base. This reads only
+    what is already present in a lawful artifact; it never modifies anything and
+    works even when ``__TEXT`` is FairPlay-encrypted (``cryptid 1``), since the
+    string and symbol tables are not part of the encrypted region.
+    """
+    sl.nsyms = nsyms
+    if nsyms <= 0:
+        return
+    entry_size = 16 if sl.is_64 else 12
+    sym_base = base + symoff
+    str_base = base + stroff
+    mm_len = len(mm)
+    if sym_base < 0 or str_base < 0:
+        sl.errors.append("symtab: negative offset")
+        return
+    if sym_base + entry_size > mm_len:
+        sl.errors.append("symtab: symbol table out of range")
+        return
+    # The string table is bounded by stroff..stroff+strsize, but never past EOF.
+    str_limit = min(str_base + max(strsize, 0), mm_len)
+    count = min(nsyms, _MAX_SYMBOLS)
+    defined: set[str] = set()
+    undefined: set[str] = set()
+    nlist_fmt = endian + ("IBBHQ" if sl.is_64 else "IBBHI")
+    for i in range(count):
+        off = sym_base + i * entry_size
+        if off + entry_size > mm_len:
+            break
+        try:
+            n_strx, n_type, _n_sect, _n_desc, _n_value = struct.unpack_from(nlist_fmt, mm, off)
+        except struct.error:
+            break
+        if n_type & N_STAB:
+            continue  # debug (STABS) entry -- not an export/import
+        if not (n_type & N_EXT):
+            continue  # only external symbols are obfuscation-stable anchors
+        name = _mm_cstr(mm, str_base + n_strx, str_limit)
+        if not name:
+            continue
+        typ = n_type & N_TYPE
+        if typ == N_SECT:
+            defined.add(name)
+        elif typ == N_UNDF:
+            undefined.add(name)
+    sl.defined_symbols = sorted(defined)
+    sl.undefined_symbols = sorted(undefined)
 
 
 def _parse_slice(mm: mmap.mmap, base: int) -> Slice:
@@ -295,6 +371,10 @@ def _parse_load_command(cmd: int, body: bytes, endian: str, mm: mmap.mmap, base:
         sl.code_signature = {"dataoff": dataoff, "datasize": datasize}
         _parse_code_signature(mm, base, dataoff, datasize, sl)
         return
+    if cmd == LC_SYMTAB:
+        symoff, nsyms, stroff, strsize = struct.unpack_from(endian + "IIII", body, 8)
+        _parse_symtab(mm, base, endian, sl, symoff, nsyms, stroff, strsize)
+        return
 
 
 def parse_path(path: str | Path) -> dict[str, Any]:
@@ -365,6 +445,9 @@ def _slice_to_dict(s: Slice) -> dict[str, Any]:
         "cs_flags": s.cs_flags,
         "entitlements": s.entitlements,
         "der_entitlements_present": s.der_entitlements_present,
+        "defined_symbols": s.defined_symbols,
+        "undefined_symbols": s.undefined_symbols,
+        "nsyms": s.nsyms,
         "errors": s.errors,
     }
 

@@ -1,0 +1,26 @@
+# Tooling configuration only.
+#
+# This file intentionally declares NO [build-system] / [project] table: the kit
+# is run as standalone scripts under scripts/ with a sys.path shim, not installed
+# as a package (packaging/unification is a separate, deliberate roadmap step).
+# Keeping this to tool config avoids disturbing the existing import scheme while
+# still giving CI a single source of truth for linting.
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+extend-exclude = ["out", "corpus", "artifacts"]
+
+[tool.ruff.lint]
+# A pragmatic, low-noise set for a security-research kit that prizes readability
+# and dependency-free stdlib code over strict style. The lint job is non-blocking
+# in CI; this keeps its signal useful.
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",   # long lines are common in struct/format-heavy parsers
+    "B008",   # function calls in argument defaults (argparse patterns)
+    "UP038",  # isinstance tuple form is clearer here
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E741"]  # short names (l, I) appear in crafted-bytecode fixtures
