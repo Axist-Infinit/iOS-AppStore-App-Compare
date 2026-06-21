@@ -31,7 +31,9 @@ The core engine does **not** decrypt, bypass DRM, patch code signatures, dump pr
 19. [Quality gates](#quality-gates)
 20. [Roadmap for extending the kit](#roadmap-for-extending-the-kit)
 21. [Android: matching bundled open-source libraries](#android-matching-bundled-open-source-libraries)
-22. [Reference links](#reference-links)
+22. [iOS: identifying bundled libraries by symbol set](#ios-identifying-bundled-libraries-by-symbol-set)
+23. [Android: diffing manifest capabilities](#android-diffing-manifest-capabilities)
+24. [Reference links](#reference-links)
 
 ---
 
@@ -1372,6 +1374,75 @@ decryption, deobfuscation, repackaging, or execution — consistent with the kit
 scope boundary. Full methodology, honest limits (dead-code elimination, string
 encryption, commercial control-flow obfuscation), and prior-art references are in
 [`docs/android_library_matching.md`](docs/android_library_matching.md).
+
+---
+
+## iOS: identifying bundled libraries by symbol set
+
+The kit's two core techniques are *whole-artifact metadata diffing* (the iOS
+engine above) and *component/version identification by structural containment*
+(the Android library matcher above). This section gives **iOS** the second
+technique, so you can ask "**which version** of an embedded framework/dylib is in
+this app?" the same way the Android arm does — useful for CVE/license mapping of
+bundled native or Swift dependencies.
+
+Instead of obfuscation-resilient *class* signatures (Android), the iOS matcher
+fingerprints the **set of exported Mach-O symbols** (`LC_SYMTAB`). iOS app/Swift
+code is not name-obfuscated, so exported symbol names are a stable per-version
+fingerprint. Because the symbol table lives in `__LINKEDIT` — *outside* the
+FairPlay-encrypted `__TEXT` — this works **even on App Store `cryptid 1`
+binaries** and on embedded `.framework`/`.dylib` slices.
+
+```bash
+# 1. Build a corpus from known reference versions (one framework/dylib/dir each).
+python3 scripts/ios_lib_fingerprint.py build-corpus \
+  --in corpus/SQLCipher-versions --out corpus/sqlcipher.corpus.jsonl
+
+# 2. Identify what an app/framework bundles.
+python3 scripts/ios_lib_fingerprint.py match \
+  --candidate artifacts/appstore/Signal-AppStore.ipa \
+  --corpus corpus/sqlcipher.corpus.jsonl \
+  --out out/ios_sqlcipher_match
+open out/ios_sqlcipher_match/report.html
+```
+
+Matching is set **containment** (`|ref ∩ cand| / |ref|`); the bundled version is
+the containment peak, with a `strong`/`partial`/`weak` verdict and a
+`candidate.libprofile.json` plus per-version CSVs. The candidate may be an
+`.ipa`, `.app`, `.framework`, `.dylib`, a Mach-O file, or a directory. Honest
+limits (Swift name-mangling stability, stripped binaries / `-Wl,-x`,
+static-vs-dynamic linking, small-library collisions) are in
+[`docs/ios_library_matching.md`](docs/ios_library_matching.md). Read-only:
+no decryption, patching, or bypass.
+
+---
+
+## Android: diffing manifest capabilities
+
+Symmetrically, this section gives **Android** the *metadata/capability-diffing*
+technique — the Android analogue of the iOS `Info.plist`/entitlements comparison.
+It parses the compiled binary `AndroidManifest.xml` (the AXML resource format)
+straight out of an APK — no `apktool`/`aapt` — and reports permissions, exported
+components, intent filters, SDK levels, and application security flags, then
+diffs two builds and separates **high-signal** changes from informational ones.
+
+```bash
+# Extract one app's capability surface.
+python3 scripts/android_manifest.py extract --apk app-release.apk --json
+
+# Diff two builds (e.g. App Store/Play APK vs a source/F-Droid build, or v1 vs v2).
+python3 scripts/android_manifest.py diff \
+  --a play-store.apk --b fdroid.apk --out out/manifest_diff
+open out/manifest_diff/report.html
+```
+
+High-signal deltas include newly-requested **dangerous permissions**,
+newly-**exported** components, `debuggable=true`, cleartext-traffic enabled, and
+a lowered `minSdkVersion`/`targetSdkVersion` — the Android counterparts of the
+iOS engine's entitlement/Info.plist findings. Limits (resource-id-only
+attributes, declaration ≠ runtime behaviour, AAB base-vs-split manifests) are in
+[`docs/android_manifest_diffing.md`](docs/android_manifest_diffing.md).
+Read-only: no decompilation, repackaging, or execution.
 
 ---
 
